@@ -1,0 +1,30 @@
+{
+  "audio_pc": {
+    "name": "",
+    "ip_address": "",
+    "mac_address": "",
+    "username": "",
+    "password": ""
+  },
+  "network": {
+    "max_retries": 10,
+    "retry_interval": 15,
+    "ping_timeout": 2000,
+    "port_check_timeout": 3000,
+    "check_ports": [135, 445, 5985]
+  },
+  "ui": {
+    "show_startup_window": true,
+    "show_tray_icon": false,
+    "auto_close_delay": 3000,
+    "show_notifications": true,
+    "theme": "modern"
+  },
+  "log": {
+    "enabled": true,
+    "level": "INFO",
+    "max_size_mb": 10,
+    "backup_count": 5,
+    "console_output": false
+  }
+}

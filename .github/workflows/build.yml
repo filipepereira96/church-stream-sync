@@ -1,0 +1,75 @@
+name: Build Executables
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Build executables
+      run: |
+        python build/build.py
+    
+    - name: Create artifacts directory
+      run: |
+        mkdir release
+        copy dist\*.exe release\
+        copy README.md release\
+        copy LICENSE release\
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: church-stream-sync-windows
+        path: release/
+        retention-days: 90
+    
+    - name: Create Release (on tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/*.exe
+          README.md
+          LICENSE
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Generate build info
+      run: |
+        echo "Build completed successfully!" > build-info.txt
+        echo "Commit: ${{ github.sha }}" >> build-info.txt
+        echo "Branch: ${{ github.ref_name }}" >> build-info.txt
+        echo "Built on: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" >> build-info.txt
+        type build-info.txt
+    
+    - name: Upload build info
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-info
+        path: build-info.txt
+
