@@ -66,7 +66,7 @@ def build_main_app() -> None:
     ]
 
     PyInstaller.__main__.run(args)
-    print("\n✓ ChurchStreamSync.exe compiled successfully!")
+    print("\n[OK] ChurchStreamSync.exe compiled successfully!")
 
 
 def build_shutdown() -> None:
@@ -95,7 +95,7 @@ def build_shutdown() -> None:
     ]
 
     PyInstaller.__main__.run(args)
-    print("\n✓ ChurchShutdown.exe compiled successfully!")
+    print("\n[OK] ChurchShutdown.exe compiled successfully!")
 
 
 def build_installer() -> None:
@@ -125,7 +125,7 @@ def build_installer() -> None:
     ]
 
     PyInstaller.__main__.run(args)
-    print("\n✓ ChurchSetup.exe compiled successfully!")
+    print("\n[OK] ChurchSetup.exe compiled successfully!")
 
 
 def build_uninstaller() -> None:
@@ -155,7 +155,7 @@ def build_uninstaller() -> None:
     ]
 
     PyInstaller.__main__.run(args)
-    print("\n✓ ChurchUninstall.exe compiled successfully!")
+    print("\n[OK] ChurchUninstall.exe compiled successfully!")
 
 
 def create_readme() -> None:
@@ -166,9 +166,9 @@ Church Stream Sync - Executables
 
 FILES:
 ------
-• ChurchSetup.exe     - Run this to configure the system
-• ChurchStreamSync.exe - Main application (do not run manually)
-• ChurchShutdown.exe   - Shutdown script (do not run manually)
+- ChurchSetup.exe     - Run this to configure the system
+- ChurchStreamSync.exe - Main application (do not run manually)
+- ChurchShutdown.exe   - Shutdown script (do not run manually)
 
 INSTALLATION:
 -------------
@@ -188,7 +188,7 @@ For more information, see the full documentation.
 
     readme_path = DIST_DIR / "README.txt"
     readme_path.write_text(readme_content, encoding="utf-8")
-    print("\n✓ README.txt created")
+    print("\n[OK] README.txt created")
 
 
 def main() -> None:
@@ -216,7 +216,7 @@ def main() -> None:
     print(f"\nExecutables available at: {DIST_DIR}")
     print("\nGenerated files:")
     for exe in DIST_DIR.glob("*.exe"):
-        print(f"  • {exe.name}")
+        print(f"  - {exe.name}")
 
     print("\n" + "=" * 60)
     print("NEXT STEPS:")
