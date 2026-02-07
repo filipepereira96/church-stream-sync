@@ -145,7 +145,7 @@ class AudioPCConfigPage(QWizardPage):
 
         # Username
         self.username_edit = QLineEdit()
-        self.username_edit.setPlaceholderText("Ex: Administrador")
+        self.username_edit.setPlaceholderText("Ex: Administrador ou DOMINIO\\Usuario")
         layout.addRow("Usuário (com admin):", self.username_edit)
 
         # Password (optional)
@@ -168,7 +168,7 @@ class AudioPCConfigPage(QWizardPage):
         self.setLayout(layout)
 
         # Register fields (* = required)
-        self.registerField("audio_pc_name*", self.name_edit)
+        self.registerField("audio_pc_name", self.name_edit)  # Optional (has default)
         self.registerField("audio_pc_ip*", self.ip_edit)
         self.registerField("audio_pc_mac*", self.mac_edit)
         self.registerField("audio_pc_username*", self.username_edit)
@@ -194,10 +194,9 @@ class AudioPCConfigPage(QWizardPage):
             return False
 
         # Validate username
-        if not validate_username(self.username_edit.text()):
-            QMessageBox.warning(
-                self, "Usuário Inválido", "Nome de usuário contém caracteres inválidos."
-            )
+        valid, error_msg = validate_username(self.username_edit.text())
+        if not valid:
+            QMessageBox.warning(self, "Usuário Inválido", error_msg)
             return False
 
         return True

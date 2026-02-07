@@ -115,20 +115,33 @@ def validate_hostname(hostname: str) -> bool:
     return bool(re.match(pattern, hostname))
 
 
-def validate_username(username: str) -> bool:
+def validate_username(username: str) -> tuple[bool, str]:
     """
     Validate a Windows username.
+
+    Accepts local names, DOMAIN\\User, and user@domain.com (UPN) formats.
 
     Args:
         username: Username to validate
 
     Returns:
-        True if valid, False otherwise
+        Tuple of (is_valid, error_message). error_message is empty when valid.
     """
-    if not username or len(username) > 20:
-        return False
+    if not username:
+        return False, "Nome de usuário não pode ser vazio."
+
+    if len(username) > 104:
+        return False, "Nome de usuário muito longo (máximo: 104 caracteres)."
 
     # Characters not allowed in Windows usernames
-    invalid_chars = r'["/\[\]:;|=,+*?<>]'
+    # Note: backslash is allowed for DOMAIN\User format
+    # Note: @ is allowed for UPN format (user@domain.com)
+    invalid_chars = r'["/\[\];|=,+*?<>]'
 
-    return not re.search(invalid_chars, username)
+    if re.search(invalid_chars, username):
+        return False, (
+            "Nome de usuário contém caracteres inválidos.\n"
+            'Não permitidos: " / [ ] ; | = , + * ? < >'
+        )
+
+    return True, ""

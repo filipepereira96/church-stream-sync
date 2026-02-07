@@ -7,6 +7,7 @@ computers over the network using magic packets.
 
 from __future__ import annotations
 
+import ipaddress
 import socket
 import time
 from typing import TYPE_CHECKING
@@ -50,18 +51,30 @@ class WakeOnLAN:
         self.ip_address = ip_address
         self.check_ports = check_ports or [135, 445, 5985]
 
-    def send_magic_packet(
-        self, port: int = 9, broadcast: str = "255.255.255.255"
-    ) -> bool:
+    @staticmethod
+    def _subnet_broadcast(ip: str, prefix_len: int = 24) -> str:
+        """
+        Derive subnet-directed broadcast address from an IP.
+
+        Args:
+            ip: Target IP address (e.g. "192.168.1.100")
+            prefix_len: Subnet prefix length (default: 24)
+
+        Returns:
+            Broadcast address (e.g. "192.168.1.255")
+        """
+        network = ipaddress.IPv4Network(f"{ip}/{prefix_len}", strict=False)
+        return str(network.broadcast_address)
+
+    def send_magic_packet(self) -> bool:
         """
         Send Magic Packet to wake up the PC.
 
-        Args:
-            port: UDP port (default: 9)
-            broadcast: Broadcast address
+        Sends multiple packets to both subnet-directed and limited broadcast
+        addresses on ports 7 and 9 for maximum reliability.
 
         Returns:
-            True if packet was sent successfully
+            True if at least one packet was sent successfully
         """
         try:
             # Remove separators and convert to bytes
@@ -71,14 +84,30 @@ class WakeOnLAN:
             # Create Magic Packet: 6 bytes FF + 16x MAC
             magic_packet = b"\xff" * 6 + mac_bytes * 16
 
-            # Send via UDP
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            sock.sendto(magic_packet, (broadcast, port))
-            sock.close()
+            # Determine broadcast addresses
+            subnet_broadcast = self._subnet_broadcast(self.ip_address)
+            targets = [
+                (subnet_broadcast, 9),
+                (subnet_broadcast, 7),
+                ("255.255.255.255", 9),
+            ]
 
-            logger.info(f"Magic Packet sent to {self.mac_address}")
-            return True
+            sent_count = 0
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                for _repeat in range(3):
+                    for addr, port in targets:
+                        try:
+                            sock.sendto(magic_packet, (addr, port))
+                            sent_count += 1
+                        except OSError as e:
+                            logger.debug(f"Failed to send to {addr}:{port}: {e}")
+
+            logger.info(
+                f"Magic Packet sent to {self.mac_address} "
+                f"({sent_count} packets, broadcast={subnet_broadcast})"
+            )
+            return sent_count > 0
 
         except Exception as e:
             logger.error(f"Error sending Magic Packet: {e}")
