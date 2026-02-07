@@ -15,16 +15,18 @@ Church Stream Sync automatically synchronizes two computers used in live streami
 ### How It Works
 
 ```
-Main PC Login → Audio PC turns on automatically
-Main PC Shutdown → Audio PC shuts down together
+Main PC Login → Audio PC turns on automatically → Runs in background (system tray)
+Main PC Shutdown → Audio PC shuts down first → Windows shutdown proceeds
 ```
 
-The system eliminates the need to manually turn on/off the second computer, simplifying operations and preventing oversights.
+The system runs as a background service that intercepts Windows shutdown events, ensuring the Audio PC is safely shut down before the Main PC completes its shutdown sequence. This eliminates the need to manually turn on/off the second computer and guarantees proper shutdown order.
 
 ## ✨ Features
 
+- ✅ **Background Service** runs continuously, intercepting Windows shutdown
+- ✅ **System Tray Icon** for easy access and status monitoring
 - ✅ **Automatic Wake-on-LAN** on user login
-- ✅ **Automatic remote shutdown** on logoff/shutdown
+- ✅ **Guaranteed Shutdown Order** blocks Main PC shutdown until Audio PC is off
 - ✅ **Graphical interface** with real-time visual feedback
 - ✅ **Smart retry** with up to 10 automatic attempts
 - ✅ **Multiple methods** for shutdown (4 strategies with fallback)
@@ -79,11 +81,19 @@ Get-NetAdapter | Select-Object Name, MacAddress
    - Test the connection
    - Finalize installation
 
+The system will automatically start on next login and run in the background.
+
 ### Step 3: Test
 
 1. Logout and login on the Main PC
-2. A window should appear showing progress
-3. Wait for confirmation "PC de Áudio Pronto!" (Audio PC Ready!)
+2. A startup window shows the Audio PC boot progress
+3. After completion, the system minimizes to the system tray
+4. Look for the Church Stream Sync icon near the clock (system tray)
+5. Right-click the icon to:
+   - View Audio PC status (online/offline)
+   - Manually shutdown Audio PC
+   - Access configuration
+   - View logs
 
 ## 📖 Documentation
 
@@ -113,11 +123,13 @@ uv sync
 ```
 church-stream-sync/
 ├── src/                    # Source code
-│   ├── main.py            # Main application (Wake-on-LAN)
-│   ├── shutdown.py        # Shutdown script
-│   ├── core/              # Core logic
-│   ├── gui/               # Graphical interface
-│   └── utils/             # Utilities
+│   ├── main.py            # Entry point with mode routing
+│   ├── service/           # Background service
+│   │   └── background.py  # Shutdown interception
+│   ├── shutdown.py        # Remote shutdown logic
+│   ├── core/              # Core logic (config, network, WOL)
+│   ├── gui/               # Graphical interface (startup, tray, shutdown progress)
+│   └── utils/             # Utilities (Windows tasks, validators)
 ├── installer/             # Installation system
 ├── build/                 # Build scripts
 ├── .github/workflows/     # CI/CD (GitHub Actions)
@@ -127,23 +139,22 @@ church-stream-sync/
 ### Build Executables
 
 ```bash
-python build/build.py
+python src/build.py
 ```
 
 Generates executables in `dist/`:
-- `ChurchSetup.exe` - Installer
+- `ChurchSetup.exe` - Setup wizard (run once or to reconfigure)
+- `ChurchStreamSync.exe` - Main application (background service)
 - `ChurchUninstall.exe` - Uninstaller
-- `ChurchStreamSync.exe` - Main app
-- `ChurchShutdown.exe` - Automatic shutdown
 
 ### Testing
 
 ```bash
-# Run in development mode
+# Run in development mode (opens setup wizard if no config, otherwise starts service)
 python src/main.py
 
-# Test shutdown
-python src/shutdown.py
+# Test remote shutdown directly
+python -c "from src.shutdown import RemoteShutdown; s = RemoteShutdown('192.168.1.100', 'username', 'password'); print(s.execute())"
 ```
 
 ## 🐛 Troubleshooting

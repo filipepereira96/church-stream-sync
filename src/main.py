@@ -2,126 +2,119 @@
 Main entry point for the system.
 
 This module is automatically executed on user login via Windows Task Scheduler.
-It initializes the Wake-on-LAN process to turn on the Audio PC.
+It routes execution to either:
+- Setup mode: If configuration doesn't exist, shows setup wizard
+- Service mode: If configuration exists, runs background service
 """
 
 from __future__ import annotations
 
+import os
 import sys
 
+from PyQt5.QtWidgets import QApplication, QMessageBox
+
 from src.core import logger
-from src.core.config import get_config
-from src.gui.startup import show_startup_window
+from src.core.config import Config
+from src.utils.windows import ensure_single_instance
 
 
-def check_configuration() -> bool:
+def run_setup_mode() -> None:
     """
-    Check if the system is properly configured.
+    Run the setup wizard to configure the application.
 
-    Returns:
-        True if configured, False otherwise
+    After configuration is saved, the application will restart
+    automatically in service mode.
     """
-    config = get_config()
+    logger.info("No configuration found, entering setup mode")
 
-    if not config.is_configured():
-        logger.error("System is not configured!")
-
-        # Try to show configuration message
-        from PyQt5.QtWidgets import QApplication, QMessageBox
-
-        app = QApplication(sys.argv)
-
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Warning)
-        msg.setWindowTitle("Configuração Necessária")
-        msg.setText("O sistema de sincronização não está configurado.")
-        msg.setInformativeText("Execute o instalador 'ChurchSetup.exe' primeiro.")
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec_()
-
-        return False
-
-    # Validate configuration
-    is_valid, error_message = config.validate()
-    if not is_valid:
-        logger.error(f"Invalid configuration: {error_message}")
-
-        from PyQt5.QtWidgets import QApplication, QMessageBox
-
-        app = QApplication(sys.argv)  # noqa: F841
-
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Critical)
-        msg.setWindowTitle("Erro de Configuração")
-        msg.setText("Configuração inválida detectada.")
-        msg.setInformativeText(error_message)
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec_()
-
-        return False
-
-    return True
-
-
-def main() -> None:
-    """Main function."""
     try:
-        logger.info("=" * 60)
-        logger.info("Church Stream Sync - Initialization")
-        logger.info("=" * 60)
+        from installer.setup import run_setup_wizard
 
-        # Check configuration
-        if not check_configuration():
-            logger.error("Exiting due to configuration error")
+        _ = QApplication(sys.argv)
+
+        # Run setup wizard
+        success = run_setup_wizard()
+
+        if success:
+            logger.info("Setup completed successfully, restarting in service mode...")
+
+            # Restart application in service mode
+            python = sys.executable
+            os.execl(python, python, *sys.argv)
+        else:
+            logger.info("Setup cancelled by user")
+            sys.exit(0)
+
+    except Exception as e:
+        logger.exception("Error during setup")
+
+        try:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setWindowTitle("Erro no Instalador")
+            msg.setText("Ocorreu um erro durante a configuração.")
+            msg.setDetailedText(str(e))
+            msg.setStandardButtons(QMessageBox.Ok)
+            msg.exec_()
+        except Exception:
+            pass
+
+        sys.exit(1)
+
+
+def run_service_mode() -> None:
+    """
+    Run the background service.
+
+    This mode:
+    1. Sends WOL to Audio PC
+    2. Runs continuously in background
+    3. Intercepts Windows shutdown to manage Audio PC shutdown
+    """
+    logger.info("Configuration found, entering service mode")
+
+    try:
+        # Load and validate configuration
+        config = Config.load()
+
+        is_valid, error_message = config.validate()
+        if not is_valid:
+            logger.error(f"Invalid configuration: {error_message}")
+
+            _ = QApplication(sys.argv)
+
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setWindowTitle("Erro de Configuração")
+            msg.setText("Configuração inválida detectada.")
+            msg.setInformativeText(
+                error_message + "\n\nExecute o instalador novamente."
+            )
+            msg.setStandardButtons(QMessageBox.Ok)
+            msg.exec_()
+
             sys.exit(1)
 
-        config = get_config()
         logger.info(f"Audio PC: {config.audio_pc.name}")
         logger.info(f"IP: {config.audio_pc.ip_address}")
         logger.info(f"MAC: {config.audio_pc.mac_address}")
 
-        # Show startup window
-        if config.ui.show_startup_window:
-            logger.info("Showing startup window")
-            exit_code = show_startup_window()
-            logger.info(f"Window closed with code: {exit_code}")
-            sys.exit(exit_code)
-        else:
-            # Silent mode (log only)
-            logger.info("Running in silent mode")
+        # Start background service
+        from src.service.background import BackgroundService
 
-            from src.core.wol import WakeOnLAN
-
-            wol = WakeOnLAN(
-                mac_address=config.audio_pc.mac_address,
-                ip_address=config.audio_pc.ip_address,
-                check_ports=config.network.check_ports,
-            )
-
-            success, message = wol.wake_and_wait(
-                max_retries=config.network.max_retries,
-                retry_interval=config.network.retry_interval,
-            )
-
-            if success:
-                logger.info(f"SUCCESS: {message}")
-                sys.exit(0)
-            else:
-                logger.error(f"FAILURE: {message}")
-                sys.exit(1)
+        service = BackgroundService()
+        service.start()
 
     except KeyboardInterrupt:
         logger.info("Interrupted by user")
         sys.exit(0)
 
     except Exception as e:
-        logger.exception("Fatal error during execution")
+        logger.exception("Fatal error during service execution")
 
-        # Try to show error message
         try:
-            from PyQt5.QtWidgets import QApplication, QMessageBox
-
-            app = QApplication(sys.argv)  # noqa: F841
+            _ = QApplication(sys.argv)
 
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Critical)
@@ -133,6 +126,49 @@ def main() -> None:
         except Exception:
             pass
 
+        sys.exit(1)
+
+
+def main() -> None:
+    """
+    Main entry point with mode routing.
+
+    Decides whether to run setup wizard or background service based on
+    configuration existence.
+    """
+    try:
+        logger.info("=" * 60)
+        logger.info("Church Stream Sync - Starting")
+        logger.info("=" * 60)
+
+        # Single instance check
+        if not ensure_single_instance():
+            logger.warning("Another instance is already running")
+
+            _ = QApplication(sys.argv)
+
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Information)
+            msg.setWindowTitle("Já em Execução")
+            msg.setText("Church Stream Sync já está rodando.")
+            msg.setInformativeText(
+                "Verifique o ícone na bandeja do sistema (system tray)."
+            )
+            msg.setStandardButtons(QMessageBox.Ok)
+            msg.exec_()
+
+            sys.exit(0)
+
+        # Mode detection: check if config exists
+        if not Config.exists():
+            # No config -> Setup mode
+            run_setup_mode()
+        else:
+            # Config exists -> Service mode
+            run_service_mode()
+
+    except Exception:
+        logger.exception("Fatal error in main")
         sys.exit(1)
 
 

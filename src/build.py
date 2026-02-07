@@ -69,33 +69,8 @@ def build_main_app() -> None:
     print("\n[OK] ChurchStreamSync.exe compiled successfully!")
 
 
-def build_shutdown() -> None:
-    """Compile the shutdown script."""
-    print("\n" + "=" * 60)
-    print("Compiling ChurchShutdown.exe...")
-    print("=" * 60)
-
-    args = [
-        str(SRC_DIR / "shutdown.py"),
-        "--name=ChurchShutdown",
-        "--onefile",
-        "--console",  # Console to view logs
-        f"--distpath={DIST_DIR}",
-        f"--workpath={BUILD_DIR}",
-        "--clean",
-        "--noupx",
-        # Additional data
-        "--add-data=src;src",
-        # Hooks and hidden imports
-        "--hidden-import=wmi",
-        "--hidden-import=win32api",
-        "--hidden-import=win32com",
-        # Settings
-        "--noconfirm",
-    ]
-
-    PyInstaller.__main__.run(args)
-    print("\n[OK] ChurchShutdown.exe compiled successfully!")
+# Note: ChurchShutdown.exe is no longer needed as shutdown is handled
+# by the background service intercepting Windows shutdown events
 
 
 def build_installer() -> None:
@@ -166,9 +141,16 @@ Church Stream Sync - Executables
 
 FILES:
 ------
-- ChurchSetup.exe     - Run this to configure the system
-- ChurchStreamSync.exe - Main application (do not run manually)
-- ChurchShutdown.exe   - Shutdown script (do not run manually)
+- ChurchSetup.exe     - Run this to configure the system (optional after first setup)
+- ChurchStreamSync.exe - Main application (runs automatically on login)
+- ChurchUninstall.exe  - Uninstaller
+
+HOW IT WORKS:
+-------------
+The system now runs as a single executable in the background:
+1. On login → Automatically wakes up the Audio PC
+2. Runs in background (system tray icon)
+3. On shutdown → Automatically shuts down the Audio PC
 
 INSTALLATION:
 -------------
@@ -178,6 +160,16 @@ INSTALLATION:
 4. Log off and log back in
 
 The system will be activated automatically!
+
+SYSTEM TRAY:
+------------
+Look for the Church Stream Sync icon in the system tray (near the clock).
+Right-click for options:
+- View Audio PC status
+- Manually shutdown Audio PC
+- Access configuration
+- View logs
+- Exit
 
 SUPPORT:
 --------
@@ -204,7 +196,6 @@ def main() -> None:
     build_installer()
     build_uninstaller()
     build_main_app()
-    build_shutdown()
 
     # Create README
     create_readme()

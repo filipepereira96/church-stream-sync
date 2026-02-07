@@ -222,15 +222,31 @@ class RemoteShutdown:
             logger.error(f"Error using net/shutdown: {e}")
             return False
 
-    def shutdown(self) -> tuple[bool, str]:
+    def execute(self, expedited: bool = False) -> bool:
+        """
+        Execute shutdown with optional expedited mode.
+
+        Args:
+            expedited: If True, use shorter timeouts for faster shutdown
+
+        Returns:
+            True if successful
+        """
+        success, _ = self.shutdown(expedited=expedited)
+        return success
+
+    def shutdown(self, expedited: bool = False) -> tuple[bool, str]:
         """
         Attempt to shutdown the PC using multiple methods.
+
+        Args:
+            expedited: If True, use shorter timeouts (for system shutdown blocking)
 
         Returns:
             Tuple of (success, message)
         """
         logger.info("=" * 50)
-        logger.info("Starting shutdown process")
+        logger.info(f"Starting shutdown process (expedited={expedited})")
         logger.info(f"Target: {self.ip_address}")
         logger.info("=" * 50)
 
@@ -248,15 +264,18 @@ class RemoteShutdown:
             ("PsExec", self.shutdown_via_psexec),
         ]
 
+        # Adjust wait time based on mode
+        max_wait = 30 if expedited else 60
+
         for method_name, method_func in methods:
             logger.info(f"Trying method: {method_name}")
 
             try:
                 if method_func():
                     # Wait for confirmation
-                    time.sleep(3)
+                    time.sleep(2 if expedited else 3)
 
-                    if self._wait_for_shutdown():
+                    if self._wait_for_shutdown(max_wait=max_wait):
                         message = f"PC de Áudio desligado via {method_name}"
                         logger.info(f"SUCCESS: {message}")
                         return True, message

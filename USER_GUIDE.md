@@ -47,18 +47,28 @@ The system **automatically turns on and off** the audio computer when you turn o
    ║        [  OK  ]                ║
    ╚════════════════════════════════╝
    ```
-5. **Start streaming**
+5. **Look for the icon** near the clock (system tray)
+6. **Start streaming**
 
 ### During Streaming
 
 **Use the computers normally!** No need to do anything special.
+
+The system runs in the background. You can:
+- **Right-click** the tray icon to see Audio PC status
+- **Check** if it's online/offline
+- **Manually shutdown** Audio PC if needed (advanced)
 
 ### Ending Streaming
 
 1. **End the live** normally
 2. **Close the programs**
 3. **Click "Shutdown"** in Windows
-4. The Audio PC **shuts down automatically** together
+4. A **progress window** will appear: "Desligando PC de Áudio..."
+5. Windows will **wait** until Audio PC confirms it's off (30-60 seconds)
+6. Then **both computers** shut down together
+
+**Note:** The Main PC temporarily blocks shutdown to ensure the Audio PC turns off first. This is normal and expected behavior!
 
 ---
 
@@ -122,6 +132,18 @@ If you need to do this occasionally, no problem - but don't make it a routine.
 2. Audio PC remains on
 3. When you login, system detects and closes quickly
 
+### "What is that icon near the clock?"
+
+That's the **Church Stream Sync** icon in the system tray.
+
+**What you can do:**
+- **Right-click** to see the menu
+- **Check** if Audio PC is online (🟢) or offline (🔴)
+- **View logs** if needed
+- **Manually shutdown** Audio PC (only if necessary)
+
+**Tip:** If you don't see the icon, click the arrow (^) to expand hidden icons.
+
 ---
 
 ## 🆘 When to Call the Technician
@@ -145,6 +167,8 @@ Before each streaming:
 - [ ] Login done?
 - [ ] Window appeared?
 - [ ] "PC Pronto!" confirmation received?
+- [ ] System tray icon visible?
+- [ ] Icon shows Audio PC online (🟢)?
 - [ ] Audio coming correctly?
 
 **If all YES:** ✅ Can start!
@@ -203,6 +227,7 @@ Before each streaming:
 08:51 → Login
 08:51 → Window appears "Ligando..."
 08:52 → "PC Pronto!" ✅
+08:52 → System tray icon appears (🟢 Online)
 08:52 → Open OBS/programs
 08:55 → Test audio/video
 09:00 → Start streaming
@@ -210,8 +235,9 @@ Before each streaming:
 11:00 → End streaming
 11:01 → Close programs
 11:02 → Click "Shutdown"
-11:02 → Main PC shuts down
-11:03 → Audio PC shuts down automatically
+11:02 → Progress window: "Desligando PC de Áudio..."
+11:03 → Audio PC confirmed offline
+11:03 → Main PC continues shutdown
 11:04 → Leave! 🎉
 ```
 

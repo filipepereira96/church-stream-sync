@@ -127,7 +127,7 @@ venv\Scripts\activate
 uv sync
 
 # Build
-python build/build.py
+python src/build.py
 
 # Executables will be in: dist/
 ```
@@ -179,30 +179,32 @@ python build/build.py
 
 The installer automatically:
 - ✅ Saves settings in `%APPDATA%\ChurchStreamSync\`
-- ✅ Creates **startup** scheduled task (ChurchStreamSync)
-- ✅ Creates **shutdown** scheduled task (ChurchStreamShutdown)
+- ✅ Creates **startup** scheduled task (runs on login)
 - ✅ Configures logs in `%APPDATA%\ChurchStreamSync\logs\`
+
+**Note:** The system now runs as a single background service that automatically handles both startup (WOL) and shutdown. No separate shutdown task is needed.
 
 ---
 
 ## Phase 4: Validate Installation (1-2 minutes)
 
-### 4.1 Check Scheduled Tasks
+### 4.1 Check Scheduled Task
 
 ```powershell
-# Check both tasks
-Get-ScheduledTask | Where-Object {$_.TaskName -like "*Church*"}
+# Check task
+Get-ScheduledTask -TaskName "ChurchStreamSync"
 
 # Should show:
-# ChurchStreamSync      - Trigger: At log on
-# ChurchStreamShutdown  - Trigger: On workstation unlock
+# TaskName: ChurchStreamSync
+# State: Ready
+# Triggers: At log on
 ```
 
 ### 4.2 Startup Test (Wake-on-LAN)
 
 1. **Logout** from the Main PC
 2. **Login** again
-3. **Wait** for the window to appear:
+3. **Wait** for the startup window to appear:
    ```
    ╔════════════════════════════╗
    ║        🎙️                 ║
@@ -211,17 +213,22 @@ Get-ScheduledTask | Where-Object {$_.TaskName -like "*Church*"}
    ╚════════════════════════════╝
    ```
 4. **Confirm**: "✅ PC de Áudio Pronto!"
+5. **Check** for the system tray icon near the clock
+6. **Right-click** the icon to see the menu
 
 **If it worked:** ✅ Installation successful!
 
 ### 4.3 Shutdown Test
 
 1. **Make sure** Audio PC is on
-2. **Logout** or **shutdown** the Main PC
-3. **Wait 30-60 seconds**
-4. **Check** if Audio PC shut down
+2. **Initiate shutdown** on the Main PC (Start → Shutdown)
+3. A **progress window should appear**: "Desligando PC de Áudio..."
+4. Windows shutdown will be **temporarily blocked** (30-60 seconds)
+5. After Audio PC confirms offline, **Windows will proceed** with shutdown
 
 **If it worked:** ✅ System fully operational!
+
+**Note:** The system now intercepts Windows shutdown events, ensuring the Audio PC shuts down first before allowing the Main PC to complete its shutdown sequence.
 
 ---
 
@@ -239,9 +246,9 @@ Get-ScheduledTask | Where-Object {$_.TaskName -like "*Church*"}
 - [x] Executables downloaded/built
 - [x] `ChurchSetup.exe` executed successfully
 - [x] Connection test passed ✅
-- [x] Scheduled tasks created (startup + shutdown)
-- [x] Login test worked
-- [x] Shutdown test worked
+- [x] Scheduled task created (ChurchStreamSync)
+- [x] Login test worked (WOL + system tray icon appears)
+- [x] Shutdown test worked (blocks until Audio PC is off)
 
 ---
 
@@ -310,51 +317,18 @@ $Action = New-ScheduledTaskAction -Execute $exePath
 $Trigger = New-ScheduledTaskTrigger -AtLogon -User "$env:USERNAME"
 $Principal = New-ScheduledTaskPrincipal -UserId "$env:USERNAME" `
     -LogonType Interactive -RunLevel Highest
-$Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries `
-    -DontStopIfGoingOnBatteries -StartWhenAvailable
+$Settings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -StartWhenAvailable `
+    -ExecutionTimeLimit (New-TimeSpan -Seconds 0)
 
 Register-ScheduledTask -TaskName "ChurchStreamSync" `
     -Action $Action -Trigger $Trigger `
     -Principal $Principal -Settings $Settings -Force
 ```
 
-### Create Shutdown Task Manually
-
-```powershell
-$exePath = "C:\ChurchStreamSync\ChurchShutdown.exe"
-
-# Create task XML
-$xml = @"
-<?xml version="1.0" encoding="UTF-16"?>
-<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <Triggers>
-    <SessionStateChangeTrigger>
-      <Enabled>true</Enabled>
-      <StateChange>SessionLogoff</StateChange>
-      <UserId>$env:USERNAME</UserId>
-    </SessionStateChangeTrigger>
-  </Triggers>
-  <Principals>
-    <Principal>
-      <UserId>$env:USERNAME</UserId>
-      <LogonType>InteractiveToken</LogonType>
-      <RunLevel>HighestAvailable</RunLevel>
-    </Principal>
-  </Principals>
-  <Actions>
-    <Exec>
-      <Command>$exePath</Command>
-    </Exec>
-  </Actions>
-</Task>
-"@
-
-# Import task
-$xmlPath = "$env:TEMP\ChurchShutdown.xml"
-$xml | Out-File -FilePath $xmlPath -Encoding Unicode
-schtasks /Create /TN "ChurchStreamShutdown" /XML $xmlPath /RU "$env:USERNAME" /F
-Remove-Item $xmlPath
-```
+**Note:** Only one task is needed now. The application runs in the background and automatically handles both startup (WOL) and shutdown (intercepts Windows shutdown events).
 
 ---
 
@@ -367,12 +341,12 @@ After installation, the following files are created:
 ├── config.json           # System settings
 └── logs\
     └── church_sync_YYYYMMDD.log  # Daily logs
-
-%SystemRoot%\System32\GroupPolicy\User\Scripts\
-└── Logoff\
-    ├── ChurchShutdown.exe  # Executable copy (fallback)
-    └── scripts.ini         # GPO configuration (fallback)
 ```
+
+**Task Scheduler:**
+- Task Name: `ChurchStreamSync`
+- Trigger: At logon
+- Action: Run `ChurchStreamSync.exe`
 
 ---
 
@@ -407,9 +381,8 @@ ChurchUninstall.exe
 ### Option 2: Manual
 
 ```powershell
-# Remove scheduled tasks
+# Remove scheduled task
 Unregister-ScheduledTask -TaskName "ChurchStreamSync" -Confirm:$false
-Unregister-ScheduledTask -TaskName "ChurchStreamShutdown" -Confirm:$false
 
 # Remove settings
 Remove-Item "$env:APPDATA\ChurchStreamSync" -Recurse -Force

@@ -75,7 +75,53 @@ class Config:
         """Ensure configuration directory exists."""
         self.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-    def load(self) -> bool:
+    @staticmethod
+    def exists() -> bool:
+        """
+        Check if configuration file exists.
+
+        Returns:
+            True if config file exists, False otherwise
+        """
+        return Config.CONFIG_FILE.exists()
+
+    @staticmethod
+    def load() -> Config:
+        """
+        Load configuration from file.
+
+        Returns:
+            Config instance loaded from file
+
+        Raises:
+            FileNotFoundError: If config file doesn't exist
+        """
+        config = Config()
+
+        if not config.CONFIG_FILE.exists():
+            raise FileNotFoundError(
+                f"Configuration file not found: {config.CONFIG_FILE}"
+            )
+
+        with config.CONFIG_FILE.open(encoding="utf-8") as f:
+            data = json.load(f)
+
+        # Load each section
+        if "audio_pc" in data:
+            config.audio_pc = AudioPCConfig(**data["audio_pc"])
+
+        if "network" in data:
+            config.network = NetworkConfig(**data["network"])
+
+        if "ui" in data:
+            config.ui = UIConfig(**data["ui"])
+
+        if "log" in data:
+            config.log = LogConfig(**data["log"])
+
+        return config
+
+    def load_instance(self) -> bool:
         """
         Load configuration from JSON file.
 
@@ -145,7 +191,7 @@ class Config:
             and bool(self.audio_pc.username)
         )
 
-    def validate(self) -> tuple[bool, str | None]:  # noqa: PLR0911
+    def validate(self) -> tuple[bool, str]:
         """
         Validate current configuration.
 
@@ -170,7 +216,7 @@ class Config:
             return False, "Usuário não configurado"
 
         # Password is optional - empty password uses Windows integrated auth
-        return True, None
+        return True, ""
 
     @property
     def log_dir(self) -> Path:
@@ -208,7 +254,7 @@ def get_config() -> Config:
     global _config  # noqa: PLW0603
     if _config is None:
         _config = Config()
-        _config.load()
+        _config.load_instance()
     return _config
 
 
@@ -221,5 +267,5 @@ def reload_config() -> Config:
     """
     global _config  # noqa: PLW0603
     _config = Config()
-    _config.load()
+    _config.load_instance()
     return _config

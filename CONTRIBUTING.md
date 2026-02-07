@@ -86,7 +86,7 @@ Before submitting a PR:
 
 1. **Manually test** the changes
 2. **Verify** existing functionality wasn't broken
-3. **Build** the executables: `python build/build.py`
+3. **Build** the executables: `python src/build.py`
 4. **Test** the executables in a clean environment
 
 ## 📚 Documentation
@@ -101,13 +101,15 @@ When adding features:
 
 ```
 src/
-├── core/       # Core logic
-├── gui/        # Graphical interface
-└── utils/      # Utilities
+├── main.py       # Entry point with mode routing
+├── service/      # Background service (shutdown interception)
+├── core/         # Core logic (config, network, WOL)
+├── gui/          # Graphical interface (startup, tray, shutdown progress)
+├── utils/        # Utilities (Windows tasks, validators)
+└── build.py      # Build script
 
-installer/      # Installation system
-build/          # Build scripts
-docs/           # Additional documentation
+installer/        # Installation system
+docs/             # Additional documentation
 ```
 
 ## 🔄 Review Process

@@ -403,24 +403,20 @@ class SetupWizard(QWizard):
             QMessageBox.critical(self, "Erro", f"Erro ao salvar configuração:\n{e!s}")
 
     def _create_scheduled_tasks(self) -> None:
-        """Create Windows scheduled tasks (startup and shutdown)."""
+        """Create Windows scheduled task for startup."""
 
         try:
-            # Determine executable paths
+            # Determine executable path
             exe_path = Path(sys.executable)
 
             if exe_path.name.lower() == "python.exe":
                 # In development - use Python scripts
                 base_path = Path(__file__).parent.parent
                 startup_exe = f'"{sys.executable}" "{base_path / "src" / "main.py"}"'
-                shutdown_exe = (
-                    f'"{sys.executable}" "{base_path / "src" / "shutdown.py"}"'
-                )
             else:
                 # Compiled executable
                 base_path = exe_path.parent
                 startup_exe = str(base_path / "ChurchStreamSync.exe")
-                shutdown_exe = str(base_path / "ChurchShutdown.exe")
 
             messages = []
 
@@ -432,19 +428,11 @@ class SetupWizard(QWizard):
             else:
                 messages.append(f"⚠ Startup: {msg}")
 
-            # Create shutdown task
-            logger.info("Creating shutdown task...")
-            success, msg = WindowsTaskManager.create_shutdown_task(shutdown_exe)
-            if success:
-                messages.append("✓ Desligamento automático configurado")
-            else:
-                messages.append(f"⚠ Shutdown: {msg}")
-
             # Check task status
             status = WindowsTaskManager.check_tasks()
 
-            if status["startup"] and status["shutdown"]:
-                logger.info("Both tasks created successfully")
+            if status["startup"]:
+                logger.info("Startup task created successfully")
                 QMessageBox.information(
                     self,
                     "Instalação Concluída",
@@ -453,40 +441,43 @@ class SetupWizard(QWizard):
                     + "\n\n"
                     + "IMPORTANTE:\n"
                     + "• Ao fazer LOGIN → PC de Áudio liga automaticamente\n"
-                    + "• Ao fazer LOGOFF/SHUTDOWN → PC de Áudio desliga junto\n\n"
+                    + "• Ao fazer SHUTDOWN → PC de Áudio desliga automaticamente\n"
+                    + "• O programa roda em segundo plano na bandeja do sistema\n\n"
                     + "Faça logout e login novamente para ativar o sistema.",
                 )
-            elif status["startup"]:
-                logger.warning("Only startup task was created")
-                QMessageBox.warning(
-                    self,
-                    "Configuração Parcial",
-                    "O sistema foi parcialmente configurado:\n\n"
-                    + "\n".join(messages)
-                    + "\n\n"
-                    + "O PC de Áudio irá ligar automaticamente,\n"
-                    + "mas pode ser necessário desligá-lo manualmente.\n\n"
-                    + "Execute o instalador novamente com privilégios de administrador.",
-                )
             else:
-                logger.error("Failed to create tasks")
+                logger.error("Failed to create startup task")
                 QMessageBox.critical(
                     self,
                     "Erro de Configuração",
-                    "Não foi possível configurar as tarefas automáticas:\n\n"
+                    "Não foi possível configurar a tarefa automática:\n\n"
                     + "\n".join(messages)
                     + "\n\n"
                     + "Execute o instalador como Administrador.",
                 )
 
         except Exception as e:
-            logger.exception("Error creating scheduled tasks")
+            logger.exception("Error creating scheduled task")
             QMessageBox.critical(
                 self,
                 "Erro",
-                f"Erro ao configurar tarefas automáticas:\n{e!s}\n\n"
+                f"Erro ao configurar tarefa automática:\n{e!s}\n\n"
                 + "Execute o instalador como Administrador.",
             )
+
+
+def run_setup_wizard() -> bool:
+    """
+    Run the setup wizard and return success status.
+
+    Returns:
+        True if setup was completed successfully, False if cancelled
+    """
+    wizard = SetupWizard()
+    result = wizard.exec_()
+
+    # QWizard.Accepted = 1, QWizard.Rejected = 0
+    return result == QWizard.Accepted
 
 
 def main() -> None:

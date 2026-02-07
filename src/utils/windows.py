@@ -7,13 +7,12 @@ for automatic execution of the synchronization system.
 
 from __future__ import annotations
 
-import contextlib
-import os
-import shutil
 import subprocess
-from pathlib import Path
 
 from src.core import logger
+
+
+_mutex = None
 
 
 class WindowsTaskManager:
@@ -63,157 +62,6 @@ Register-ScheduledTask -TaskName "ChurchStreamSync" -Action $Action -Trigger $Tr
             return False, str(e)
 
     @staticmethod
-    def create_shutdown_task(exe_path: str) -> tuple[bool, str]:
-        """
-        Create a scheduled task to run on shutdown/logoff.
-
-        This task executes the Audio PC shutdown script.
-
-        Args:
-            exe_path: Full path to the shutdown executable
-
-        Returns:
-            Tuple of (success, message)
-        """
-        try:
-            # Get current username
-            current_user = os.getenv("USERNAME", "")
-
-            # Task XML with shutdown trigger
-            task_xml = f"""<?xml version="1.0" encoding="UTF-16"?>
-<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo>
-    <Description>Turns off the Audio PC when the OBS PC is shut down</Description>
-    <Author>Church Stream Sync</Author>
-  </RegistrationInfo>
-  <Triggers>
-    <SessionStateChangeTrigger>
-      <Enabled>true</Enabled>
-      <StateChange>SessionLogoff</StateChange>
-      <UserId>{current_user}</UserId>
-    </SessionStateChangeTrigger>
-  </Triggers>
-  <Principals>
-    <Principal id="Author">
-      <UserId>{current_user}</UserId>
-      <LogonType>InteractiveToken</LogonType>
-      <RunLevel>HighestAvailable</RunLevel>
-    </Principal>
-  </Principals>
-  <Settings>
-    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
-    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
-    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
-    <AllowHardTerminate>true</AllowHardTerminate>
-    <StartWhenAvailable>false</StartWhenAvailable>
-    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
-    <IdleSettings>
-      <StopOnIdleEnd>false</StopOnIdleEnd>
-      <RestartOnIdle>false</RestartOnIdle>
-    </IdleSettings>
-    <AllowStartOnDemand>true</AllowStartOnDemand>
-    <Enabled>true</Enabled>
-    <Hidden>false</Hidden>
-    <RunOnlyIfIdle>false</RunOnlyIfIdle>
-    <WakeToRun>false</WakeToRun>
-    <ExecutionTimeLimit>PT5M</ExecutionTimeLimit>
-    <Priority>7</Priority>
-  </Settings>
-  <Actions Context="Author">
-    <Exec>
-      <Command>{exe_path}</Command>
-    </Exec>
-  </Actions>
-</Task>"""
-
-            # Save temporary XML
-            temp_dir = os.getenv("TEMP", ".")
-            temp_xml = Path(temp_dir) / "ChurchShutdownTask.xml"
-            temp_xml.write_text(task_xml, encoding="utf-16")
-
-            # Import task via schtasks
-            ps_script = f'''
-# Remove existing task if present
-schtasks /Delete /TN "ChurchStreamShutdown" /F 2>$null
-
-# Import new task
-schtasks /Create /TN "ChurchStreamShutdown" /XML "{temp_xml}" /RU "{current_user}" /F
-'''
-
-            result = subprocess.run(
-                ["powershell", "-Command", ps_script],
-                capture_output=True,
-                text=True,
-                timeout=30,
-                check=False,
-            )
-
-            # Remove temporary file
-            with contextlib.suppress(OSError):
-                temp_xml.unlink()
-
-            if result.returncode == 0 or "SUCCESS" in result.stdout:
-                logger.info("Shutdown task created successfully")
-                return True, "Tarefa de shutdown configurada"
-            logger.warning(f"Possible error creating shutdown task: {result.stderr}")
-            # Try alternative method
-            return WindowsTaskManager._create_shutdown_task_alternative(exe_path)
-
-        except Exception:
-            logger.exception("Error creating shutdown task")
-            return WindowsTaskManager._create_shutdown_task_alternative(exe_path)
-
-    @staticmethod
-    def _create_shutdown_task_alternative(exe_path: str) -> tuple[bool, str]:
-        """
-        Alternative method using Group Policy Scripts.
-
-        Args:
-            exe_path: Executable path
-
-        Returns:
-            Tuple of (success, message)
-        """
-        try:
-            logger.info("Trying alternative method via Group Policy")
-
-            # Create shutdown script via Group Policy
-            system_root = os.getenv("SYSTEMROOT", r"C:\Windows")
-            gpo_path = (
-                Path(system_root)
-                / "System32"
-                / "GroupPolicy"
-                / "User"
-                / "Scripts"
-                / "Logoff"
-            )
-            gpo_path.mkdir(parents=True, exist_ok=True)
-
-            # Copy executable to GPO folder
-            shutdown_exe = gpo_path / "ChurchShutdown.exe"
-            shutil.copy2(exe_path, shutdown_exe)
-
-            # Configure scripts.ini
-            scripts_ini = gpo_path.parent / "scripts.ini"
-            ini_content = f"""[Logoff]
-0CmdLine={shutdown_exe.name}
-0Parameters=
-"""
-            scripts_ini.write_text(ini_content, encoding="utf-8")
-
-            # Update Group Policy
-            subprocess.run(
-                ["gpupdate", "/force"], capture_output=True, timeout=60, check=False
-            )
-
-            logger.info("Shutdown configured via Group Policy")
-            return True, "Shutdown configurado via Group Policy"
-
-        except Exception as e:
-            logger.exception("Error in alternative method")
-            return False, f"Erro: {e!s}"
-
-    @staticmethod
     def remove_tasks() -> tuple[bool, str]:
         """
         Remove all tasks created by the system.
@@ -223,51 +71,37 @@ schtasks /Create /TN "ChurchStreamShutdown" /XML "{temp_xml}" /RU "{current_user
         """
         try:
             ps_script = """
-# Remove tasks
 Unregister-ScheduledTask -TaskName "ChurchStreamSync" -Confirm:$false -ErrorAction SilentlyContinue
-Unregister-ScheduledTask -TaskName "ChurchStreamShutdown" -Confirm:$false -ErrorAction SilentlyContinue
-
-# Remove GPO scripts
-$gpoPath = "$env:SystemRoot\\System32\\GroupPolicy\\User\\Scripts\\Logoff"
-if (Test-Path $gpoPath) {
-    Remove-Item "$gpoPath\\ChurchShutdown.exe" -ErrorAction SilentlyContinue
-    Remove-Item "$gpoPath\\..\\scripts.ini" -ErrorAction SilentlyContinue
-}
-
-gpupdate /force
 """
 
             subprocess.run(
                 ["powershell", "-Command", ps_script],
                 capture_output=True,
-                timeout=60,
+                timeout=30,
                 check=False,
             )
 
-            logger.info("Tasks removed successfully")
+            logger.info("Task removed successfully")
             return True, "Sistema desinstalado"
 
         except Exception as e:
-            logger.exception("Error removing tasks")
+            logger.exception("Error removing task")
             return False, str(e)
 
     @staticmethod
     def check_tasks() -> dict[str, bool | str | None]:
         """
-        Check status of scheduled tasks.
+        Check status of scheduled task.
 
         Returns:
             Dictionary with task status
         """
         status: dict[str, bool | str | None] = {
             "startup": False,
-            "shutdown": False,
             "startup_details": None,
-            "shutdown_details": None,
         }
 
         try:
-            # Check startup task
             result = subprocess.run(
                 ["schtasks", "/Query", "/TN", "ChurchStreamSync", "/FO", "LIST", "/V"],
                 capture_output=True,
@@ -279,28 +113,8 @@ gpupdate /force
                 status["startup"] = True
                 status["startup_details"] = result.stdout
 
-            # Check shutdown task
-            result = subprocess.run(
-                [
-                    "schtasks",
-                    "/Query",
-                    "/TN",
-                    "ChurchStreamShutdown",
-                    "/FO",
-                    "LIST",
-                    "/V",
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-
-            if result.returncode == 0:
-                status["shutdown"] = True
-                status["shutdown_details"] = result.stdout
-
         except Exception as e:
-            logger.error(f"Error checking tasks: {e}")
+            logger.error(f"Error checking task: {e}")
 
         return status
 
@@ -368,3 +182,42 @@ class WindowsStartupManager:
         except Exception as e:
             logger.error(f"Error removing from startup: {e}")
             return False
+
+
+def ensure_single_instance() -> bool:
+    """
+    Ensure that only one instance of the application is running.
+
+    Uses a Win32 mutex to detect if another instance is already active.
+
+    Returns:
+        True if this is the only instance, False if another instance is already running
+    """
+    global _mutex
+
+    try:
+        import win32api
+        import win32event
+        import winerror
+    except ImportError:
+        logger.warning("win32 modules not available, skipping single instance check")
+        return True
+
+    try:
+        # Create a named mutex (None uses default security attributes)
+        _mutex = win32event.CreateMutex(None, False, "ChurchStreamSyncMutex")  # pyright: ignore [reportArgumentType]
+
+        # Check if mutex already exists
+        last_error = win32api.GetLastError()
+
+        if last_error == winerror.ERROR_ALREADY_EXISTS:
+            logger.info("Another instance is already running")
+            return False
+
+        logger.info("Single instance check passed")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error checking single instance: {e}")
+        # On error, allow execution to continue
+        return True

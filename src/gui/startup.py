@@ -68,11 +68,15 @@ class WakeThread(QThread):
 class StartupWindow(QWidget):
     """Startup window with visual feedback."""
 
+    # Signal emitted when window is closed (success: bool)
+    closed = pyqtSignal(bool)
+
     def __init__(self) -> None:
         super().__init__()
         self.config = get_config()
         self.wake_thread: WakeThread | None = None
         self.auto_close_timer: QTimer | None = None
+        self.success = False
 
         self._init_ui()
         self._start_wake_process()
@@ -249,6 +253,7 @@ class StartupWindow(QWidget):
 
     def _show_success(self, message: str) -> None:
         """Show success message."""
+        self.success = True
         self.icon_label.setText("✅")
         self.status_label.setText("PC de Áudio Pronto!")
         self.status_label.setStyleSheet("color: #107C10;")
@@ -261,9 +266,10 @@ class StartupWindow(QWidget):
 
         # Auto-close after delay
         if self.config.ui.auto_close_delay > 0:
-            self.auto_close_timer = QTimer()
-            self.auto_close_timer.timeout.connect(self.close)
-            self.auto_close_timer.start(self.config.ui.auto_close_delay)
+            timer = QTimer()
+            timer.timeout.connect(self.close)
+            timer.start(self.config.ui.auto_close_delay)
+            self.auto_close_timer = timer
 
     def _show_error(self, message: str) -> None:
         """Show error message."""
@@ -302,6 +308,9 @@ class StartupWindow(QWidget):
         if self.wake_thread and self.wake_thread.isRunning():
             self.wake_thread.terminate()
             self.wake_thread.wait()
+
+        # Emit closed signal with success status
+        self.closed.emit(self.success)
 
         event.accept()
 
