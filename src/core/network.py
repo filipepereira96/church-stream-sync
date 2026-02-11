@@ -16,6 +16,9 @@ import socket
 import subprocess
 from dataclasses import dataclass
 
+# Prevent console window flash on Windows when running subprocess commands
+_SUBPROCESS_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 from src.core import logger
 
 
@@ -77,6 +80,7 @@ class NetworkChecker:
                 capture_output=True,
                 timeout=timeout / 1000 + 1,
                 check=False,
+                creationflags=_SUBPROCESS_FLAGS,
             )
 
             success = result.returncode == 0

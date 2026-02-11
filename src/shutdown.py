@@ -14,6 +14,9 @@ import sys
 import time
 from pathlib import Path
 
+# Prevent console window flash on Windows when running subprocess commands
+_SUBPROCESS_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 from src.core import logger
 from src.core.config import get_config
 from src.core.network import NetworkChecker
@@ -73,7 +76,11 @@ class RemoteShutdown:
             ]
 
             result = subprocess.run(
-                command, capture_output=True, timeout=10, check=False
+                command,
+                capture_output=True,
+                timeout=10,
+                check=False,
+                creationflags=_SUBPROCESS_FLAGS,
             )
 
             success = result.returncode == 0
@@ -154,6 +161,7 @@ class RemoteShutdown:
                 timeout=15,
                 text=True,
                 check=False,
+                creationflags=_SUBPROCESS_FLAGS,
             )
 
             success = result.returncode == 0
@@ -189,7 +197,12 @@ class RemoteShutdown:
                 )
 
             subprocess.run(
-                net_use, shell=True, capture_output=True, timeout=5, check=False
+                net_use,
+                shell=True,
+                capture_output=True,
+                timeout=5,
+                check=False,
+                creationflags=_SUBPROCESS_FLAGS,
             )
 
             # Send shutdown
@@ -201,6 +214,7 @@ class RemoteShutdown:
                 timeout=5,
                 text=True,
                 check=False,
+                creationflags=_SUBPROCESS_FLAGS,
             )
 
             # Clean up connection
@@ -210,6 +224,7 @@ class RemoteShutdown:
                 shell=True,
                 capture_output=True,
                 check=False,
+                creationflags=_SUBPROCESS_FLAGS,
             )
 
             success = result.returncode == 0
