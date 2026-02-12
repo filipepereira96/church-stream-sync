@@ -16,7 +16,7 @@ import socket
 import subprocess
 from dataclasses import dataclass
 
-from src.core import logger
+from src.core import SUBPROCESS_FLAGS, logger
 
 
 @dataclass
@@ -77,6 +77,7 @@ class NetworkChecker:
                 capture_output=True,
                 timeout=timeout / 1000 + 1,
                 check=False,
+                creationflags=SUBPROCESS_FLAGS,
             )
 
             success = result.returncode == 0

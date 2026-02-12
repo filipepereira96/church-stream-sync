@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import subprocess
 
-from src.core import logger
+from src.core import SUBPROCESS_FLAGS, logger
 
 
 _mutex = None
@@ -49,6 +49,7 @@ Register-ScheduledTask -TaskName "ChurchStreamSync" -Action $Action -Trigger $Tr
                 text=True,
                 timeout=30,
                 check=False,
+                creationflags=SUBPROCESS_FLAGS,
             )
 
             if result.returncode == 0:
@@ -79,6 +80,7 @@ Unregister-ScheduledTask -TaskName "ChurchStreamSync" -Confirm:$false -ErrorActi
                 capture_output=True,
                 timeout=30,
                 check=False,
+                creationflags=SUBPROCESS_FLAGS,
             )
 
             logger.info("Task removed successfully")
@@ -107,6 +109,7 @@ Unregister-ScheduledTask -TaskName "ChurchStreamSync" -Confirm:$false -ErrorActi
                 capture_output=True,
                 text=True,
                 check=False,
+                creationflags=SUBPROCESS_FLAGS,
             )
 
             if result.returncode == 0:
